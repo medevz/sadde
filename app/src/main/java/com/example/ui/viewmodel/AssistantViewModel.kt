@@ -19,12 +19,14 @@ import com.example.domain.ai.MockAiProvider
 import com.example.domain.ai.OfflineRuleEngine
 import com.example.domain.ai.OpenAiCompatibleProvider
 import com.example.domain.model.ActionExecutionStatus
+import com.example.domain.model.ActionType
 import com.example.domain.model.AiProviderType
 import com.example.domain.model.AppSettings
 import com.example.domain.model.AssistantAction
 import com.example.domain.model.AssistantState
 import com.example.domain.model.ChatMessage
 import com.example.domain.model.MessageRole
+import com.example.domain.system.SystemTelemetryManager
 import com.example.service.SpeechService
 import com.example.service.TtsService
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -52,6 +54,7 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
     val actionEngine = ActionEngine(context, permissionManager, ttsService)
     val actionParser = ActionParser()
     val offlineRuleEngine = OfflineRuleEngine()
+    val systemTelemetryManager = SystemTelemetryManager(context)
 
     private val vibrator = context.getSystemService(Application.VIBRATOR_SERVICE) as? Vibrator
 
@@ -262,6 +265,52 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
     fun executeSingleAction(action: AssistantAction) {
         viewModelScope.launch {
             actionEngine.executeAction(action, settings.value.language)
+        }
+    }
+
+    fun setLanguage(lang: String) {
+        viewModelScope.launch {
+            preferencesDataStore.updateSettings(settings.value.copy(language = lang))
+        }
+    }
+
+    fun toggleTorch(): Boolean {
+        return systemTelemetryManager.toggleTorch()
+    }
+
+    fun openApp(packageNameOrName: String) {
+        viewModelScope.launch {
+            actionEngine.executeAction(
+                AssistantAction(type = ActionType.OPEN_APP, target = packageNameOrName),
+                settings.value.language
+            )
+        }
+    }
+
+    fun openSettings(target: String = "settings") {
+        viewModelScope.launch {
+            actionEngine.executeAction(
+                AssistantAction(type = ActionType.OPEN_SETTINGS, target = target),
+                settings.value.language
+            )
+        }
+    }
+
+    fun adjustVolume(up: Boolean) {
+        viewModelScope.launch {
+            actionEngine.executeAction(
+                AssistantAction(type = if (up) ActionType.VOLUME_UP else ActionType.VOLUME_DOWN),
+                settings.value.language
+            )
+        }
+    }
+
+    fun dispatchMedia(actionType: ActionType) {
+        viewModelScope.launch {
+            actionEngine.executeAction(
+                AssistantAction(type = actionType),
+                settings.value.language
+            )
         }
     }
 

@@ -5,16 +5,6 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,72 +17,63 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MicOff
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.filled.WorkspacePremium
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.domain.model.ActionType
 import com.example.domain.model.AssistantState
-import com.example.ui.components.AudioWaveformVisualizer
-import com.example.ui.components.ChatBubble
-import com.example.ui.components.FuturisticAvatar
-import com.example.ui.components.QuickActionPills
-import com.example.ui.theme.CyberAmber
-import com.example.ui.theme.CyberBorder
-import com.example.ui.theme.CyberCyan
-import com.example.ui.theme.CyberDark
-import com.example.ui.theme.CyberEmerald
-import com.example.ui.theme.CyberPink
-import com.example.ui.theme.CyberPurple
-import com.example.ui.theme.CyberRose
-import com.example.ui.theme.CyberSurface
-import com.example.ui.theme.ObsidianDark
-import com.example.ui.theme.TextMutedDark
-import com.example.ui.theme.TextPrimaryDark
-import com.example.ui.theme.TextSecondaryDark
+import com.example.ui.components.ConversationCard
+import com.example.ui.components.LeftStatusCards
+import com.example.ui.components.NavItem
+import com.example.ui.components.NowPlayingCard
+import com.example.ui.components.RightActionCards
+import com.example.ui.components.ShreyaBottomNav
+import com.example.ui.components.ShreyaCharacterAvatar
+import com.example.ui.components.SystemStatusDeck
+import com.example.ui.components.VoiceWaveformDeck
 import com.example.ui.viewmodel.AssistantViewModel
+import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(
@@ -103,15 +84,17 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val assistantState by viewModel.assistantState.collectAsStateWithLifecycle()
     val messages by viewModel.messages.collectAsStateWithLifecycle()
-    val liveTranscript by viewModel.liveTranscript.collectAsStateWithLifecycle()
-    val suggestedPrompts by viewModel.suggestedPrompts.collectAsStateWithLifecycle()
     val volumeLevel by viewModel.rmsVolume.collectAsStateWithLifecycle()
+    val systemStatus by viewModel.systemTelemetryManager.status.collectAsStateWithLifecycle()
 
-    var textInput by remember { mutableStateOf("") }
-    val listState = rememberLazyListState()
+    var showProDialog by remember { mutableStateOf(false) }
+    var selectedBottomNav by remember { mutableStateOf(NavItem.HOME) }
 
     // Request Audio Permission Launcher
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -124,411 +107,397 @@ fun HomeScreen(
         }
     }
 
-    // Auto scroll chat when new messages arrive
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.size - 1)
+    val isListening = assistantState is AssistantState.Listening
+    val isSpeaking = assistantState is AssistantState.Speaking
+
+    fun handleMicToggle() {
+        if (isSpeaking) {
+            viewModel.stopSpeaking()
+        } else if (isListening) {
+            viewModel.stopListening()
+        } else {
+            if (viewModel.permissionManager.hasRecordAudioPermission()) {
+                viewModel.startListening()
+            } else {
+                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            }
         }
     }
 
-    val isListening = assistantState is AssistantState.Listening
-    val isSpeaking = assistantState is AssistantState.Speaking
-    val isProcessing = assistantState is AssistantState.Processing
-
-    // Infinite pulse transition for microphone button when active
-    val infiniteTransition = rememberInfiniteTransition(label = "mic_pulse")
-    val micPulseScale by infiniteTransition.animateFloat(
-        initialValue = 1.0f,
-        targetValue = 1.25f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "mic_scale"
-    )
-
-    Scaffold(
-        modifier = modifier
-            .fillMaxSize()
-            .background(ObsidianDark),
-        containerColor = ObsidianDark,
-        contentWindowInsets = WindowInsets(0, 0, 0, 0)
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .imePadding(),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // --- TOP BAR ---
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+    // Modal Navigation Drawer for Hamburger Menu
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet(
+                drawerContainerColor = Color(0xFF0F0B1A),
+                drawerContentColor = Color.White
             ) {
-                // Status Pill
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(CyberSurface)
-                        .border(1.dp, CyberBorder, RoundedCornerShape(16.dp))
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    when {
-                                        isListening -> CyberCyan
-                                        isSpeaking -> CyberPink
-                                        isProcessing -> CyberPurple
-                                        else -> CyberEmerald
-                                    }
-                                )
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = when {
-                                isListening -> "Listening..."
-                                isSpeaking -> "Speaking..."
-                                isProcessing -> "Thinking..."
-                                else -> settings.aiProvider.displayName.substringBefore(" ")
-                            },
-                            color = TextPrimaryDark,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-
-                // Action Bar Icons
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Accessibility status warning badge if not enabled
-                    if (!viewModel.permissionManager.isAccessibilityServiceEnabled()) {
-                        IconButton(
-                            onClick = onNavigateToPermissions,
-                            modifier = Modifier.size(38.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Warning,
-                                contentDescription = "Accessibility Service not enabled",
-                                tint = CyberAmber,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-
-                    IconButton(
-                        onClick = onNavigateToHistory,
-                        modifier = Modifier
-                            .size(38.dp)
-                            .testTag("history_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.History,
-                            contentDescription = "Conversation History",
-                            tint = CyberCyan,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-
-                    IconButton(
-                        onClick = onNavigateToPermissions,
-                        modifier = Modifier
-                            .size(38.dp)
-                            .testTag("permissions_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Security,
-                            contentDescription = "Permissions",
-                            tint = CyberPurple,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-
-                    IconButton(
-                        onClick = onNavigateToSettings,
-                        modifier = Modifier
-                            .size(38.dp)
-                            .testTag("settings_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Settings",
-                            tint = TextSecondaryDark,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                }
-            }
-
-            // --- MAIN CONTENT AREA ---
-            if (messages.isEmpty()) {
-                // Empty State / Welcome Screen with Large Futuristic Avatar
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    FuturisticAvatar(
-                        state = assistantState,
-                        volumeLevel = volumeLevel,
-                        size = 180.dp,
-                        modifier = Modifier.clickable {
-                            if (isSpeaking) {
-                                viewModel.stopSpeaking()
-                            } else if (isListening) {
-                                viewModel.stopListening()
-                            } else {
-                                if (viewModel.permissionManager.hasRecordAudioPermission()) {
-                                    viewModel.startListening()
-                                } else {
-                                    permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                                }
-                            }
-                        }
-                    )
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
+                Column(modifier = Modifier.padding(20.dp)) {
                     Text(
-                        text = if (settings.language.startsWith("hi")) {
-                            "Namaste! Main Shreya hoon.\nAap kya karna chahte hain?"
-                        } else {
-                            "Hello! I am Shreya.\nHow can I help you today?"
+                        text = "Shreya AI Assistant",
+                        color = Color(0xFFC084FC),
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Version 2.0 • Ultra AI",
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 12.sp
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    NavigationDrawerItem(
+                        icon = { Icon(Icons.Default.WorkspacePremium, contentDescription = null, tint = Color(0xFFFFD700)) },
+                        label = { Text("Shreya Pro Upgrade", color = Color.White) },
+                        selected = false,
+                        onClick = {
+                            coroutineScope.launch { drawerState.close() }
+                            showProDialog = true
                         },
-                        color = TextPrimaryDark,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        textAlign = TextAlign.Center,
-                        lineHeight = 26.sp
+                        colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent)
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        text = "Voice ya text commands se phone control karein.",
-                        color = TextMutedDark,
-                        fontSize = 13.sp,
-                        textAlign = TextAlign.Center
+                    NavigationDrawerItem(
+                        icon = { Icon(Icons.Default.Settings, contentDescription = null, tint = Color(0xFFC084FC)) },
+                        label = { Text("App & AI Settings", color = Color.White) },
+                        selected = false,
+                        onClick = {
+                            coroutineScope.launch { drawerState.close() }
+                            onNavigateToSettings()
+                        },
+                        colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent)
                     )
-
-                    if (isListening || isSpeaking) {
-                        Spacer(modifier = Modifier.height(16.dp))
-                        AudioWaveformVisualizer(
-                            volumeLevel = volumeLevel,
-                            isSpeaking = isSpeaking
-                        )
-                    }
-
-                    if (liveTranscript.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "\"$liveTranscript\"",
-                            color = CyberCyan,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-            } else {
-                // Chat Conversation View with Mini Avatar Header
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                ) {
-                    // Small header avatar & live visualizer
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        FuturisticAvatar(
-                            state = assistantState,
-                            volumeLevel = volumeLevel,
-                            size = 46.dp
-                        )
-
-                        Spacer(modifier = Modifier.width(12.dp))
-
-                        if (isListening || isSpeaking) {
-                            AudioWaveformVisualizer(
-                                volumeLevel = volumeLevel,
-                                isSpeaking = isSpeaking,
-                                height = 20.dp
-                            )
-                        } else if (isProcessing) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                color = CyberPurple,
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Shreya is thinking...", color = CyberPurple, fontSize = 12.sp)
-                        } else {
-                            Text(
-                                text = "Shreya Assistant Ready",
-                                color = TextMutedDark,
-                                fontSize = 12.sp
-                            )
-                        }
-                    }
-
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                    ) {
-                        items(messages, key = { it.id }) { message ->
-                            ChatBubble(
-                                message = message,
-                                onReplayAudio = { text -> viewModel.sendMessage(text) },
-                                onDelete = { id -> viewModel.deleteMessage(id) },
-                                onActionClick = { action -> viewModel.executeSingleAction(action) }
-                            )
-                        }
-                    }
-                }
-            }
-
-            // --- SUGGESTION PILLS ---
-            QuickActionPills(
-                prompts = suggestedPrompts,
-                onPromptSelected = { prompt ->
-                    textInput = ""
-                    viewModel.sendMessage(prompt)
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // --- BOTTOM CONTROL DECK ---
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Text Input Field
-                OutlinedTextField(
-                    value = textInput,
-                    onValueChange = { textInput = it },
-                    placeholder = {
-                        Text(
-                            text = if (isListening) "Listening to you..." else "Type command (e.g. YouTube kholo)...",
-                            color = TextMutedDark,
-                            fontSize = 14.sp
-                        )
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("text_input"),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = CyberSurface,
-                        unfocusedContainerColor = CyberSurface,
-                        focusedBorderColor = CyberCyan,
-                        unfocusedBorderColor = CyberBorder,
-                        focusedTextColor = TextPrimaryDark,
-                        unfocusedTextColor = TextPrimaryDark
-                    ),
-                    singleLine = true,
-                    trailingIcon = {
-                        if (textInput.isNotBlank()) {
-                            IconButton(
-                                onClick = {
-                                    val text = textInput
-                                    textInput = ""
-                                    viewModel.sendMessage(text)
-                                },
-                                modifier = Modifier.testTag("send_button")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Send,
-                                    contentDescription = "Send Command",
-                                    tint = CyberCyan
-                                )
-                            }
-                        }
-                    }
-                )
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // Big Animated Microphone Button
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.size(56.dp)
-                ) {
-                    if (isListening) {
-                        // Outer pulsing ripple ring
-                        Box(
-                            modifier = Modifier
-                                .size(56.dp)
-                                .scale(micPulseScale)
-                                .clip(CircleShape)
-                                .background(CyberCyan.copy(alpha = 0.25f))
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .size(50.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (isListening) {
-                                    Brush.linearGradient(listOf(CyberRose, CyberPink))
-                                } else if (isSpeaking) {
-                                    Brush.linearGradient(listOf(CyberPurple, CyberPink))
-                                } else {
-                                    Brush.linearGradient(listOf(CyberCyan, CyberPurple))
-                                }
-                            )
-                            .clickable {
-                                if (isSpeaking) {
-                                    viewModel.stopSpeaking()
-                                } else if (isListening) {
-                                    viewModel.stopListening()
-                                } else {
-                                    if (viewModel.permissionManager.hasRecordAudioPermission()) {
-                                        viewModel.startListening()
-                                    } else {
-                                        permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                                    }
-                                }
-                            }
-                            .testTag("mic_button"),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = when {
-                                isSpeaking -> Icons.Default.Stop
-                                isListening -> Icons.Default.Mic
-                                else -> Icons.Default.Mic
-                            },
-                            contentDescription = if (isListening) "Stop Listening" else "Start Voice Input",
-                            tint = if (isListening) Color.White else ObsidianDark,
-                            modifier = Modifier.size(26.dp)
-                        )
-                    }
                 }
             }
         }
+    ) {
+        Scaffold(
+            modifier = modifier
+                .fillMaxSize()
+                .background(Color(0xFF0A0714)),
+            containerColor = Color(0xFF0A0714),
+            contentWindowInsets = WindowInsets(0, 0, 0, 0)
+        ) { paddingValues ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+            ) {
+                // Background Ambient Glow Gradients
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color(0xFF0E0B1A),
+                                    Color(0xFF0A0714),
+                                    Color(0xFF080510)
+                                )
+                            )
+                        )
+                )
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // ==========================================
+                    // 1. TOP HEADER
+                    // ==========================================
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        // Left: Hamburger Menu
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF161026))
+                                .border(1.dp, Color(0xFF9333EA).copy(alpha = 0.35f), CircleShape)
+                                .clickable { coroutineScope.launch { drawerState.open() } },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Menu,
+                                contentDescription = "Menu",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        // Center: Title & Subtitle
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
+                        ) {
+                            Text(
+                                text = "Shreya AI Assistant",
+                                color = Color.White,
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Always here to help you 💜",
+                                color = Color(0xFFC084FC).copy(alpha = 0.9f),
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Normal
+                            )
+                        }
+
+                        // Right: Pro Button + Settings Button
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Pro Pill Button
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(
+                                        Brush.linearGradient(
+                                            listOf(Color(0xFF8B5CF6).copy(alpha = 0.3f), Color(0xFF6D28D9).copy(alpha = 0.5f))
+                                        )
+                                    )
+                                    .border(1.dp, Color(0xFFC084FC).copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                                    .clickable { showProDialog = true }
+                                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.WorkspacePremium,
+                                        contentDescription = "Pro",
+                                        tint = Color(0xFFFFD700),
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Pro",
+                                        color = Color.White,
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+
+                            // Settings Button
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF161026))
+                                    .border(1.dp, Color(0xFF9333EA).copy(alpha = 0.35f), CircleShape)
+                                    .clickable { onNavigateToSettings() },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Settings,
+                                    contentDescription = "Settings",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // ==========================================
+                    // 2. CENTER SECTION: CHARACTER + SIDE CARDS
+                    // ==========================================
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(340.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        // Background Center Halo
+                        Box(
+                            modifier = Modifier
+                                .size(240.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.radialGradient(
+                                        listOf(
+                                            Color(0xFF7E22CE).copy(alpha = 0.35f),
+                                            Color(0xFF3B0764).copy(alpha = 0.15f),
+                                            Color.Transparent
+                                        )
+                                    )
+                                )
+                        )
+
+                        // Center Prominent Avatar
+                        ShreyaCharacterAvatar(
+                            state = assistantState,
+                            volumeLevel = volumeLevel,
+                            size = 230.dp,
+                            modifier = Modifier.clickable { handleMicToggle() }
+                        )
+
+                        // Left Side Cards Deck
+                        LeftStatusCards(
+                            state = assistantState,
+                            volumeLevel = volumeLevel,
+                            currentLanguage = settings.language,
+                            onLanguageChange = { newLang -> viewModel.setLanguage(newLang) },
+                            onMicClick = { handleMicToggle() },
+                            modifier = Modifier.align(Alignment.CenterStart)
+                        )
+
+                        // Right Side Cards Deck
+                        RightActionCards(
+                            onOpenYoutube = { viewModel.openApp("youtube") },
+                            onOpenGoogle = { viewModel.sendMessage("Google par search karo") },
+                            onOpenSettings = { viewModel.openSettings() },
+                            onPlayMusic = { viewModel.dispatchMedia(ActionType.PLAY_MEDIA) },
+                            onToolClick = { tool ->
+                                when (tool) {
+                                    "apps" -> viewModel.openSettings("app")
+                                    "volume" -> viewModel.adjustVolume(up = true)
+                                    "brightness" -> viewModel.openSettings("display")
+                                    "wifi" -> viewModel.openSettings("wifi")
+                                    "bluetooth" -> viewModel.openSettings("bluetooth")
+                                    "torch" -> {
+                                        val toggled = viewModel.toggleTorch()
+                                        if (toggled) {
+                                            Toast.makeText(context, "Torch toggled", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "Camera permission needed for torch", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                }
+                            },
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // ==========================================
+                    // 3. CONVERSATION CARD
+                    // ==========================================
+                    val lastAssistantMsg = messages.lastOrNull { it.role == com.example.domain.model.MessageRole.ASSISTANT }?.text
+                    ConversationCard(
+                        greeting = "Namaste! 🙏",
+                        message = lastAssistantMsg ?: "Main Shreya hoon, aap kya karna chahte hain?",
+                        onQuickPromptSelected = { prompt ->
+                            viewModel.sendMessage(prompt)
+                        },
+                        onSendMessage = { text ->
+                            viewModel.sendMessage(text)
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // ==========================================
+                    // 4. VOICE CONTROL DECK (Waveform + Mic)
+                    // ==========================================
+                    VoiceWaveformDeck(
+                        state = assistantState,
+                        volumeLevel = volumeLevel,
+                        onMicClick = { handleMicToggle() }
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // ==========================================
+                    // 5. BOTTOM NAVIGATION
+                    // ==========================================
+                    ShreyaBottomNav(
+                        selectedItem = selectedBottomNav,
+                        onItemSelected = { item ->
+                            selectedBottomNav = item
+                            when (item) {
+                                NavItem.HOME -> { /* Already on Home */ }
+                                NavItem.CHAT -> onNavigateToHistory()
+                                NavItem.HISTORY -> onNavigateToHistory()
+                                NavItem.PROFILE -> onNavigateToPermissions()
+                            }
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // ==========================================
+                    // 6. NOW PLAYING CARD
+                    // ==========================================
+                    NowPlayingCard(
+                        songTitle = "Kesariya - Arijit Singh",
+                        subtitle = "Brahmāstra",
+                        volumePercent = 60,
+                        onPrevious = { viewModel.dispatchMedia(ActionType.PREVIOUS_MEDIA) },
+                        onPlayPause = { viewModel.dispatchMedia(ActionType.PLAY_MEDIA) },
+                        onNext = { viewModel.dispatchMedia(ActionType.NEXT_MEDIA) }
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // ==========================================
+                    // 7. SYSTEM STATUS TELEMETRY DECK
+                    // ==========================================
+                    SystemStatusDeck(
+                        systemStatus = systemStatus
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+            }
+        }
+    }
+
+    // Pro Dialog
+    if (showProDialog) {
+        AlertDialog(
+            onDismissRequest = { showProDialog = false },
+            containerColor = Color(0xFF130E20),
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.WorkspacePremium,
+                        contentDescription = "Pro",
+                        tint = Color(0xFFFFD700)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Shreya Pro Access", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "✨ Unlocked Features:",
+                        color = Color(0xFFC084FC),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text("• Gemini Flash 2.0 Ultra Fast Reasoning", color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp)
+                    Text("• Offline Neural Indian Voice Synthesis", color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp)
+                    Text("• Full System Accessibility Automation", color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp)
+                    Text("• Unlimited Smart Actions & Custom Routines", color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp)
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showProDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9333EA))
+                ) {
+                    Text("Activate Shreya Pro", color = Color.White)
+                }
+            },
+            dismissButton = {
+                IconButton(onClick = { showProDialog = false }) {
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White.copy(alpha = 0.6f))
+                }
+            }
+        )
     }
 }
