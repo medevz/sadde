@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Shreya AI Assistant</string>
+    <string name="app_short_name">Shreya AI</string>
+    <string name="accessibility_service_description">Shreya AI Assistant uses this service exclusively to perform user-requested UI interactions like clicking buttons, scrolling screens, filling search fields, and navigating when explicitly instructed.</string>
+    <string name="notification_service_description">Enables Shreya AI to read incoming notification summaries when explicitly authorized by the user.</string>
+    <string name="default_greeting_hindi">Namaste! Main Shreya hoon. Aap kya karna chahte hain?</string>
+    <string name="default_greeting_english">Hello! I am Shreya. How can I assist you today?</string>
+</resources>

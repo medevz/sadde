@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Center Orb Glow -->
+    <path
+        android:pathData="M54,54 m-22,0 a22,22 0 1,1 44,0 a22,22 0 1,1 -44,0">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="32"
+                android:startY="32"
+                android:endX="76"
+                android:endY="76"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#00F0FF" />
+                <item android:offset="0.5" android:color="#7C3AED" />
+                <item android:offset="1.0" android:color="#EC4899" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Voice Soundwave Crests -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M44,48h3v12h-3zM49,43h3v22h-3zM54,38h3v32h-3zM59,43h3v22h-3zM64,48h3v12h-3z" />
+    <!-- Outer AI Spark Accents -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M54,26L55.5,31L60.5,32.5L55.5,34L54,39L52.5,34L47.5,32.5L52.5,31z" />
+</vector>

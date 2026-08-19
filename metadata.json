@@ -1,0 +1,6 @@
+{
+  "name": "Shreya AI Assistant",
+  "description": "A production-grade personal AI voice and text assistant for Android with smart system actions, speech recognition, TTS, and multi-provider AI engine.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
